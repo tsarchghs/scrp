@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SC:RP Enhanced UI</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            background: transparent;
+            color: white;
+        }
+
+        .hud-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        /* Speedometer (bottom right) */
+        .speedometer {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 200px;
+            height: 120px;
+            background: rgba(0, 0, 0, 0.8);
+            border-radius: 15px;
+            padding: 15px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            display: none;
+        }
+
+        .speed-display {
+            font-size: 36px;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .speed-unit {
+            font-size: 14px;
+            color: #ccc;
+        }
+
+        .vehicle-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        .fuel-bar, .health-bar {
+            width: 60px;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .fuel-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff4444, #ffaa00, #44ff44);
+            transition: width 0.3s ease;
+        }
+
+        .health-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff4444, #44ff44);
+            transition: width 0.3s ease;
+        }
+
+        /* Job Progress HUD (top center) */
+        .job-progress {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            border-radius: 10px;
+            padding: 15px 25px;
+            border: 2px solid rgba(0, 255, 255, 0.3);
+            backdrop-filter: blur(10px);
+            display: none;
+            min-width: 300px;
+        }
+
+        .job-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #00ffff;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 12px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00ffff, #0080ff);
+            transition: width 0.5s ease;
+            border-radius: 6px;
+        }
+
+        .job-details {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #ccc;
+        }
+
+        /* Player Status (top left) */
+        .player-status {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border-radius: 10px;
+            padding: 15px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            min-width: 200px;
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .status-label {
+            color: #ccc;
+        }
+
+        .status-value {
+            color: #fff;
+            font-weight: bold;
+        }
+
+        .money-value {
+            color: #44ff44;
+        }
+
+        .health-value {
+            color: #ff4444;
+        }
+
+        .armor-value {
+            color: #4444ff;
+        }
+
+        /* Notification System */
+        .notification-container {
+            position: absolute;
+            top: 50%;
+            right: 20px;
+            transform: translateY(-50%);
+            width: 300px;
+        }
+
+        .notification {
+            background: rgba(0, 0, 0, 0.9);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-left: 4px solid #00ffff;
+            backdrop-filter: blur(10px);
+            animation: slideIn 0.3s ease;
+        }
+
+        .notification.success {
+            border-left-color: #44ff44;
+        }
+
+        .notification.warning {
+            border-left-color: #ffaa00;
+        }
+
+        .notification.error {
+            border-left-color: #ff4444;
+        }
+
+        .notification.reward {
+            border-left-color: #ffd700;
+            background: rgba(255, 215, 0, 0.1);
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* Reward Notification */
+        .reward-notification {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, rgba(255, 215, 0, 0.9), rgba(255, 165, 0, 0.9));
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+            border: 3px solid #ffd700;
+            backdrop-filter: blur(15px);
+            display: none;
+            animation: rewardPulse 0.5s ease;
+        }
+
+        @keyframes rewardPulse {
+            0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+            50% { transform: translate(-50%, -50%) scale(1.1); }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+
+        .reward-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #000;
+            margin-bottom: 15px;
+        }
+
+        .reward-message {
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .reward-close {
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        /* Vehicle Controls Indicator */
+        .vehicle-controls {
+            position: absolute;
+            bottom: 20px;
+            right: 240px;
+            display: none;
+        }
+
+        .control-indicator {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            margin: 2px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            text-align: center;
+            line-height: 30px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .control-indicator.active {
+            background: rgba(0, 255, 255, 0.8);
+            color: #000;
+        }
+
+        /* Hide default GTA HUD elements */
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="hud-container" id="hudContainer">
+        <!-- Player Status -->
+        <div class="player-status" id="playerStatus">
+            <div class="status-item">
+                <span class="status-label">Health:</span>
+                <span class="status-value health-value" id="healthValue">100</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Armor:</span>
+                <span class="status-value armor-value" id="armorValue">0</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Money:</span>
+                <span class="status-value money-value" id="moneyValue">$0</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Bank:</span>
+                <span class="status-value money-value" id="bankValue">$0</span>
+            </div>
+        </div>
+
+        <!-- Job Progress -->
+        <div class="job-progress" id="jobProgress">
+            <div class="job-title" id="jobTitle">No Active Job</div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+            </div>
+            <div class="job-details">
+                <span id="jobTime">00:00</span>
+                <span id="jobPayment">$0</span>
+            </div>
+        </div>
+
+        <!-- Speedometer -->
+        <div class="speedometer" id="speedometer">
+            <div class="speed-display">
+                <span id="speedValue">0</span>
+                <span class="speed-unit">KM/H</span>
+            </div>
+            <div class="vehicle-info">
+                <div>
+                    <div style="font-size: 10px; color: #ccc;">FUEL</div>
+                    <div class="fuel-bar">
+                        <div class="fuel-fill" id="fuelFill" style="width: 100%"></div>
+                    </div>
+                </div>
+                <div>
+                    <div style="font-size: 10px; color: #ccc;">ENGINE</div>
+                    <div class="health-bar">
+                        <div class="health-fill" id="engineFill" style="width: 100%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Vehicle Controls -->
+        <div class="vehicle-controls" id="vehicleControls">
+            <div class="control-indicator" id="lightsIndicator">L</div>
+            <div class="control-indicator" id="engineIndicator">E</div>
+            <div class="control-indicator" id="lockIndicator">🔒</div>
+        </div>
+
+        <!-- Notification Container -->
+        <div class="notification-container" id="notificationContainer">
+        </div>
+
+        <!-- Reward Notification -->
+        <div class="reward-notification" id="rewardNotification">
+            <div class="reward-title">🎉 REWARD UNLOCKED!</div>
+            <div class="reward-message" id="rewardMessage">You've unlocked a new reward!</div>
+            <button class="reward-close" onclick="hideRewardNotification()">Continue</button>
+        </div>
+    </div>
+
+    <script>
+        let currentJobActivity = null;
+        let notificationQueue = [];
+
+        // Listen for messages from the game
+        window.addEventListener('message', function(event) {
+            const data = event.data;
+
+            switch(data.type) {
+                case 'showEnhancedHUD':
+                    showEnhancedHUD(data.authData);
+                    break;
+                case 'hideEnhancedHUD':
+                    hideEnhancedHUD();
+                    break;
+                case 'updateSpeedometer':
+                    updateSpeedometer(data);
+                    break;
+                case 'hideSpeedometer':
+                    hideSpeedometer();
+                    break;
+                case 'updatePlayerStatus':
+                    updatePlayerStatus(data);
+                    break;
+                case 'startJobActivity':
+                    startJobActivity(data.activity);
+                    break;
+                case 'updateJobProgress':
+                    updateJobProgress(data.activityId, data.progress);
+                    break;
+                case 'jobActivityCompleted':
+                    completeJobActivity(data.results);
+                    break;
+                case 'showRewardNotification':
+                    showRewardNotification(data.reward);
+                    break;
+                case 'showNotification':
+                    showNotification(data.message, data.type);
+                    break;
+            }
+        });
+
+        function showEnhancedHUD(authData) {
+            document.getElementById('hudContainer').style.display = 'block';
+            console.log('Enhanced HUD shown for user:', authData.username);
+        }
+
+        function hideEnhancedHUD() {
+            document.getElementById('hudContainer').style.display = 'none';
+            console.log('Enhanced HUD hidden');
+        }
+
+        function updateSpeedometer(data) {
+            const speedometer = document.getElementById('speedometer');
+            speedometer.style.display = 'block';
+            
+            document.getElementById('speedValue').textContent = data.speed;
+            document.getElementById('fuelFill').style.width = data.fuel + '%';
+            document.getElementById('engineFill').style.width = (data.engine ? 100 : 0) + '%';
+            
+            // Update vehicle controls
+            const controls = document.getElementById('vehicleControls');
+            controls.style.display = 'block';
+            
+            document.getElementById('lightsIndicator').classList.toggle('active', data.lights);
+            document.getElementById('engineIndicator').classList.toggle('active', data.engine);
+        }
+
+        function hideSpeedometer() {
+            document.getElementById('speedometer').style.display = 'none';
+            document.getElementById('vehicleControls').style.display = 'none';
+        }
+
+        function updatePlayerStatus(data) {
+            document.getElementById('healthValue').textContent = data.health;
+            document.getElementById('armorValue').textContent = data.armor;
+            document.getElementById('moneyValue').textContent = '$' + data.money.toLocaleString();
+            document.getElementById('bankValue').textContent = '$' + data.bank.toLocaleString();
+        }
+
+        function startJobActivity(activity) {
+            currentJobActivity = activity;
+            const jobProgress = document.getElementById('jobProgress');
+            jobProgress.style.display = 'block';
+            
+            document.getElementById('jobTitle').textContent = activity.activity.name;
+            document.getElementById('jobPayment').textContent = '$' + activity.activity.payment;
+            document.getElementById('progressFill').style.width = '0%';
+            
+            showNotification('Job activity started: ' + activity.activity.name, 'success');
+        }
+
+        function updateJobProgress(activityId, progress) {
+            if (currentJobActivity && currentJobActivity.activityId === activityId) {
+                document.getElementById('progressFill').style.width = progress + '%';
+                
+                // Update time remaining
+                const timeRemaining = Math.floor((100 - progress) * currentJobActivity.estimatedTime / 100);
+                const minutes = Math.floor(timeRemaining / 60);
+                const seconds = timeRemaining % 60;
+                document.getElementById('jobTime').textContent = 
+                    String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+            }
+        }
+
+        function completeJobActivity(results) {
+            currentJobActivity = null;
+            document.getElementById('jobProgress').style.display = 'none';
+            
+            showNotification(
+                `Job completed! Earned $${results.payment} and ${results.experience} XP`, 
+                'success'
+            );
+        }
+
+        function showRewardNotification(reward) {
+            const notification = document.getElementById('rewardNotification');
+            document.getElementById('rewardMessage').textContent = reward.reward.message;
+            notification.style.display = 'block';
+            
+            setTimeout(() => {
+                hideRewardNotification();
+            }, 5000);
+        }
+
+        function hideRewardNotification() {
+            document.getElementById('rewardNotification').style.display = 'none';
+        }
+
+        function showNotification(message, type = 'info') {
+            const container = document.getElementById('notificationContainer');
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            
+            container.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 5000);
+        }
+
+        // Initialize
+        console.log('Enhanced UI loaded');
+    </script>
+</body>
+</html>
