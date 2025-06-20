@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SC:RP Interface</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Character Selection Screen -->
+    <div id="character-selection" class="screen hidden">
+        <div class="container">
+            <h1>South Central Roleplay</h1>
+            <div class="character-list">
+                <div class="character-card" onclick="selectCharacter(1)">
+                    <h3>John Doe</h3>
+                    <p>Level 5 • $15,000</p>
+                </div>
+                <div class="character-card new-character" onclick="showCharacterCreation()">
+                    <h3>+ Create New Character</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Character Creation Screen -->
+    <div id="character-creation" class="screen hidden">
+        <div class="container">
+            <h2>Create Character</h2>
+            <form id="character-form">
+                <input type="text" id="char-name" placeholder="Character Name" required>
+                <input type="number" id="char-age" placeholder="Age (18-80)" min="18" max="80" required>
+                <select id="char-gender" required>
+                    <option value="">Select Gender</option>
+                    <option value="1">Male</option>
+                    <option value="0">Female</option>
+                </select>
+                <input type="number" id="char-skin" placeholder="Skin ID" min="0" max="311" required>
+                <button type="submit">Create Character</button>
+                <button type="button" onclick="showCharacterSelection()">Back</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Inventory Screen -->
+    <div id="inventory" class="screen hidden">
+        <div class="container">
+            <h2>Inventory</h2>
+            <div class="inventory-grid" id="inventory-items">
+                <!-- Items will be populated here -->
+            </div>
+            <button onclick="closeInventory()">Close</button>
+        </div>
+    </div>
+
+    <!-- ATM Interface -->
+    <div id="atm" class="screen hidden">
+        <div class="container">
+            <h2>ATM</h2>
+            <div class="balance-info">
+                <p>Account Balance: $<span id="bank-balance">0</span></p>
+                <p>Cash: $<span id="cash-balance">0</span></p>
+            </div>
+            <div class="atm-buttons">
+                <button onclick="showDepositForm()">Deposit</button>
+                <button onclick="showWithdrawForm()">Withdraw</button>
+                <button onclick="closeATM()">Cancel</button>
+            </div>
+            <div id="transaction-form" class="hidden">
+                <input type="number" id="amount" placeholder="Amount" min="1">
+                <button onclick="processTransaction()">Confirm</button>
+                <button onclick="hideTransactionForm()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Property Menu -->
+    <div id="property-menu" class="screen hidden">
+        <div class="container">
+            <h2 id="property-name">Property Name</h2>
+            <div class="property-info">
+                <p>Owner: <span id="property-owner">None</span></p>
+                <p>Price: $<span id="property-price">0</span></p>
+            </div>
+            <div class="property-buttons">
+                <button id="buy-button" onclick="buyProperty()">Buy Property</button>
+                <button id="enter-button" onclick="enterProperty()">Enter</button>
+                <button onclick="closePropertyMenu()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
