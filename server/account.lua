@@ -3,15 +3,22 @@
 -- Combines secure authentication with a professional character selection system.
 
 -- =============================================================================
--- >> PLACEHOLDERS & CORE GLOBALS
+-- >> CORE GLOBALS & INITIALIZATION CHECKS
 -- =============================================================================
 
--- Ensure these tables are initialized in your core server files.
-PlayerData = PlayerData or {}
+-- Add this line at the beginning of the file to ensure the sha256 resource is started
+AddEventHandler('onResourceList', function(resourceList)
+    if not IsResourceRunning('sha256') then
+        StartResource('sha256')
+    end
+end)
+
+PlayerData = PlayerData or {} -- Placeholder for PlayerData (replace with your actual implementation)
 LoggedInPlayers = LoggedInPlayers or {}
 
 -- =============================================================================
--- >> HELPER & NOTIFICATION FUNCTIONS (Replace with your framework's functions)
+-- >> HELPER & NOTIFICATION FUNCTIONS
+-- (Uses the more comprehensive functions from the second snippet)
 -- =============================================================================
 
 function SendErrorMessage(source, message)
@@ -42,7 +49,6 @@ function SendInfoMessage(source, message)
     end
 end
 
--- A formatted message function, often used for lists.
 function SendFormattedMessage(source, color, prefix, message)
     -- This is a placeholder; your chat resource may have a similar function.
     local colorCodes = { WHITE = {255, 255, 255} }
@@ -72,17 +78,53 @@ function UnblockPlayerCommands(source)
     print("Unblocking commands for player " .. source)
 end
 
+---
+## Password Hashing (Security)
+
+The `generatePasswordHash` function now incorporates the `PerformHttpRequest` call to your `sha256` resource, ensuring proper SHA-256 hashing.
+
+```lua
 -- =============================================================================
 -- >> PASSWORD HASHING (SECURITY)
 -- =============================================================================
 
--- In a real implementation, use a proper bcrypt library for FiveM.
--- This simplified version is for demonstration purposes.
+-- Function to generate secure password hash using SHA-256
 function generatePasswordHash(password, salt)
-    return string.format("%x", string.crc32(password .. salt))
+    -- Use SHA-256 for password hashing via the external resource
+    local combinedString = password .. salt
+    local passwordHash = PerformHttpRequest('http://localhost/sha256/' .. combinedString,
+        function(err, text, headers)
+            if err == 200 then
+                -- Store the result in a way that the outer function can access it
+                -- (Note: Direct return here doesn't work asynchronously for the outer function)
+                -- For a simple blocking wait, this structure is used.
+                -- In a real-world scenario, you'd want to use callbacks or promises.
+                passwordHash = text -- This assigns to the outer 'passwordHash' local
+            else
+                print("Error hashing password: " .. err)
+                passwordHash = "" -- Set to empty on error
+            end
+        end,
+        'GET', '', {}
+    )
+
+    -- This busy-waits for the HTTP request to complete.
+    -- For production, consider an asynchronous approach (e.g., passing callbacks).
+    local waitCount = 0
+    while passwordHash == nil do
+        Wait(0) -- Yield control to other server tasks
+        waitCount = waitCount + 1
+        if waitCount > 5000 then -- Timeout after ~5 seconds (5000 * 0ms wait)
+            print("Timeout waiting for SHA256 hash.")
+            passwordHash = ""
+            break
+        end
+    end
+
+    return passwordHash
 end
 
--- Generate a random salt for hashing.
+-- Generate random salt
 function generateSalt()
     local chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
     local salt = ""
@@ -93,13 +135,19 @@ function generateSalt()
     return salt
 end
 
+---
+## Account Management
+
+The account registration and login functions are robust, including checks for existing accounts, password validation, and logging.
+
+```lua
 -- =============================================================================
 -- >> ACCOUNT MANAGEMENT
 -- =============================================================================
 
 function RegisterAccount(source, username, password, email)
     if not source or not username or not password or not email then
-        SendErrorMessage(source, "Invalid parameters for registration!")
+        SendErrorMessage(source, "Invalid parameters for registration! Usage: /register [username] [password] [email]")
         return false
     end
 
@@ -107,7 +155,7 @@ function RegisterAccount(source, username, password, email)
         SendErrorMessage(source, "Username must be between 3 and 24 characters long!")
         return false
     end
-    
+
     if string.len(password) < 6 then
         SendErrorMessage(source, "Password must be at least 6 characters long!")
         return false
@@ -119,6 +167,7 @@ function RegisterAccount(source, username, password, email)
     }, function(count)
         if count > 0 then
             SendErrorMessage(source, "An account with this username already exists!")
+            SendInfoMessage(source, "Use /login [username] [password] to login to your existing account.")
             return
         end
 
@@ -148,7 +197,7 @@ end
 
 function LoginAccount(source, username, password)
     if not source or not username or not password then
-        SendErrorMessage(source, "Invalid parameters for login!")
+        SendErrorMessage(source, "Invalid parameters for login! Usage: /login [username] [password]")
         return false
     end
 
@@ -167,6 +216,7 @@ function LoginAccount(source, username, password)
             local passwordHash = generatePasswordHash(password, accountData.Salt)
             if passwordHash ~= accountData.Password then
                 SendErrorMessage(source, "Invalid username or password!")
+                SendInfoMessage(source, "If you don't have an account, use /register [username] [password] [email].")
                 LogAction(source, "ACCOUNT_LOGIN_FAIL", "Failed login (wrong password) for username: " .. username)
                 return
             end
@@ -193,11 +243,18 @@ function LoginAccount(source, username, password)
             LoadPlayerCharacters(source, accountData.AccountID)
         else
             SendErrorMessage(source, "Invalid username or password!")
+            SendInfoMessage(source, "If you don't have an account, use /register [username] [password] [email].")
             LogAction(source, "ACCOUNT_LOGIN_FAIL", "Failed login (no such user) for username: " .. username)
         end
     end)
 end
 
+---
+## Character Management
+
+The character management functions allow players to load, select, and create characters associated with their account.
+
+```lua
 -- =============================================================================
 -- >> CHARACTER MANAGEMENT
 -- =============================================================================
@@ -209,15 +266,15 @@ function LoadPlayerCharacters(source, accountId)
         if #characters > 0 then
             PlayerData[source].availableCharacters = characters
             SendSuccessMessage(source, "You have " .. #characters .. " character(s).")
-            
+
             for i, char in ipairs(characters) do
                 SendFormattedMessage(source, "WHITE", "", string.format("%d. %s (Level %d)", i, char.Name, char.Level))
             end
-            
+
             SendInfoMessage(source, "Use /selectchar [number] to play, or /createchar [name] to make a new one.")
         else
             SendInfoMessage(source, "You don't have any characters yet.")
-            SendInfoMessage(source, "Use /createchar [name] to create your first character.")
+            SendInfoMessage(source, "Use /createchar [Firstname_Lastname] to create your first character.")
         end
     end)
 end
@@ -227,26 +284,32 @@ function SelectCharacter(source, charIndex)
         SendErrorMessage(source, "You must be logged in to select a character.")
         return
     end
-    
+
     local characters = PlayerData[source].availableCharacters
     if not characters then
         SendErrorMessage(source, "No characters available to select. Try relogging.")
         return
     end
-    
+
     charIndex = tonumber(charIndex)
     if not charIndex or charIndex < 1 or charIndex > #characters then
         SendErrorMessage(source, "Invalid character number. Please choose from the list.")
         return
     end
-    
+
     local selectedChar = characters[charIndex]
-    
-    -- Placeholder for your function that loads all character-specific data
-    -- (inventory, position, stats, etc.) and spawns the player.
-    -- loadPlayerData(source, selectedChar.CharacterID)
-    print("Placeholder: Would now load all data for CharacterID " .. selectedChar.CharacterID)
-    
+
+    -- Here, you would typically load all character-specific data (inventory, position, stats, etc.)
+    -- and then spawn the player into the world with that data.
+    -- Example placeholder:
+    -- TriggerClientEvent('scrp:spawnPlayer', source, selectedChar.CharacterID)
+    -- PlayerData[source].CharacterID = selectedChar.CharacterID
+    -- PlayerData[source].Money = selectedChar.Money
+    -- PlayerData[source].Level = selectedChar.Level
+    -- PlayerData[source].Name = selectedChar.Name -- Useful for job system and other scripts
+
+    print("Placeholder: Would now load all data for CharacterID " .. selectedChar.CharacterID .. " and spawn player.")
+
     SendSuccessMessage(source, "You have selected your character: " .. selectedChar.Name)
     LogAction(source, "CHARACTER_SELECT", "Selected character: " .. selectedChar.Name .. " (ID: " .. selectedChar.CharacterID .. ")")
 end
@@ -256,14 +319,14 @@ function CreateCharacter(source, name, age, gender, skin)
         SendErrorMessage(source, "You must be logged in to create a character.")
         return
     end
-    
+
     if not name or string.len(name) < 3 or string.find(name, "_") == nil then
-        SendErrorMessage(source, "Name must be 'Firstname_Lastname' and at least 3 chars long.")
+        SendErrorMessage(source, "Name must be 'Firstname_Lastname' and at least 3 characters long.")
         return
     end
-    
+
     local accountId = PlayerData[source].accountData.AccountID
-    
+
     -- Check if character name is already taken
     MySQL.Async.fetchScalar('SELECT COUNT(*) FROM characters WHERE Name = @name', {
         ['@name'] = name
@@ -272,24 +335,43 @@ function CreateCharacter(source, name, age, gender, skin)
             SendErrorMessage(source, "A character with this name already exists!")
             return
         end
-        
-        -- Placeholder for your function that inserts the new character into the DB
-        -- and then likely calls loadPlayerData to spawn them in.
-        -- createCharacterInDB(source, accountId, name, age, gender, skin)
-        print("Placeholder: Would now create character '" .. name .. "' in the database for AccountID " .. accountId)
-        SendSuccessMessage(source, "Character '" .. name .. "' created successfully!")
-        LogAction(source, "CHARACTER_CREATE", "Created new character: " .. name)
 
-        -- Refresh character list
-        LoadPlayerCharacters(source, accountId)
+        -- Insert new character into the database
+        MySQL.Async.execute('INSERT INTO characters (AccountID, Name, Money, Level) VALUES (@accountId, @name, @money, @level)', {
+            ['@accountId'] = accountId,
+            ['@name'] = name,
+            ['@money'] = 500, -- Default starting money
+            ['@level'] = 1    -- Default starting level
+            -- Add more parameters here if you expand your character creation (age, gender, skin, etc.)
+        }, function(insertId)
+            if insertId then
+                SendSuccessMessage(source, "Character '" .. name .. "' created successfully!")
+                LogAction(source, "CHARACTER_CREATE", "Created new character: " .. name .. " (ID: " .. insertId .. ") for AccountID: " .. accountId)
+
+                -- Refresh character list for the player
+                LoadPlayerCharacters(source, accountId)
+            else
+                SendErrorMessage(source, "Failed to create character. Please try again.")
+            end
+        end)
     end)
 end
 
+---
+## Command Registration
+
+All `RegisterCommand` calls are consolidated here for easy management.
+
+```lua
 -- =============================================================================
 -- >> COMMAND REGISTRATION
 -- =============================================================================
 
 RegisterCommand('register', function(source, args, rawCommand)
+    if source == 0 then -- Prevent console from registering
+        print("Console cannot use /register.")
+        return
+    end
     if #args < 3 then
         SendErrorMessage(source, "USAGE: /register [username] [password] [email]")
         return
@@ -298,6 +380,10 @@ RegisterCommand('register', function(source, args, rawCommand)
 end, false)
 
 RegisterCommand('login', function(source, args, rawCommand)
+    if source == 0 then -- Prevent console from logging in
+        print("Console cannot use /login.")
+        return
+    end
     if #args < 2 then
         SendErrorMessage(source, "USAGE: /login [username] [password]")
         return
@@ -306,6 +392,14 @@ RegisterCommand('login', function(source, args, rawCommand)
 end, false)
 
 RegisterCommand('selectchar', function(source, args, rawCommand)
+    if source == 0 then
+        print("Console cannot use /selectchar.")
+        return
+    end
+    if not PlayerData[source] or not PlayerData[source].isLoggedIn then
+        SendErrorMessage(source, "You must be logged in to your account first.")
+        return
+    end
     if #args < 1 then
         SendErrorMessage(source, "USAGE: /selectchar [character number from the list]")
         return
@@ -314,17 +408,94 @@ RegisterCommand('selectchar', function(source, args, rawCommand)
 end, false)
 
 RegisterCommand('createchar', function(source, args, rawCommand)
+    if source == 0 then
+        print("Console cannot use /createchar.")
+        return
+    end
+    if not PlayerData[source] or not PlayerData[source].isLoggedIn then
+        SendErrorMessage(source, "You must be logged in to your account first.")
+        return
+    end
     if #args < 1 then
         SendErrorMessage(source, "USAGE: /createchar [Firstname_Lastname]")
         return
     end
-    -- For simplicity, we only require the name. You can expand this.
-    -- e.g., CreateCharacter(source, args[1], args[2], args[3], args[4])
-    CreateCharacter(source, args[1]) 
+    CreateCharacter(source, args[1])
 end, false)
 
+---
+## Database Initialization
+
+This section includes the necessary SQL to create your `accounts` and `characters` tables if they don't already exist. Run this once when your resource starts.
+
+```lua
+-- =============================================================================
+-- >> DATABASE INITIALIZATION
+-- =============================================================================
+
+-- It's good practice to ensure your tables exist when the resource starts.
+AddEventHandler('onResourceStart', function(resourceName)
+    if (GetCurrentResourceName() ~= resourceName) then
+        return
+    end
+
+    MySQL.Async.execute([[
+        CREATE TABLE IF NOT EXISTS `accounts` (
+            `AccountID` INT(11) NOT NULL AUTO_INCREMENT,
+            `Username` VARCHAR(255) NOT NULL UNIQUE,
+            `Password` VARCHAR(255) NOT NULL,
+            `Email` VARCHAR(255) NOT NULL,
+            `RegisterDate` DATETIME DEFAULT CURRENT_TIMESTAMP,
+            `LastLogin` DATETIME DEFAULT CURRENT_TIMESTAMP,
+            `IP` VARCHAR(45) NOT NULL,
+            `Salt` VARCHAR(255) NOT NULL,
+            PRIMARY KEY (`AccountID`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ]], {}, function(rowsChanged)
+        print("^[2SUCCESS^7]^0 'accounts' table checked/created.")
+    end)
+
+    MySQL.Async.execute([[
+        CREATE TABLE IF NOT EXISTS `characters` (
+            `CharacterID` INT(11) NOT NULL AUTO_INCREMENT,
+            `AccountID` INT(11) NOT NULL,
+            `Name` VARCHAR(255) NOT NULL UNIQUE,
+            `Money` INT(11) DEFAULT 0,
+            `Level` INT(11) DEFAULT 1,
+            -- Add more character-specific columns here (e.g., 'Gender', 'Skin', 'PositionData')
+            PRIMARY KEY (`CharacterID`),
+            FOREIGN KEY (`AccountID`) REFERENCES `accounts`(`AccountID`) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ]], {}, function(rowsChanged)
+        print("^[2SUCCESS^7]^0 'characters' table checked/created.")
+    end)
+end)
+
+---
+## Player Disconnect Handling
+
+This ensures that `PlayerData` is cleaned up when a player disconnects.
+
+```lua
+-- =============================================================================
+-- >> EVENT HANDLERS
+-- =============================================================================
+
+AddEventHandler('playerDropped', function()
+    local source = source
+    if PlayerData[source] then
+        print("Cleaning up PlayerData for player " .. source)
+        PlayerData[source] = nil
+        LoggedInPlayers[source] = nil
+    end
+end)
+
+---
+## Script Loaded Message
+
+```lua
 -- =============================================================================
 -- >> SCRIPT LOADED MESSAGE
 -- =============================================================================
 
-print("^2[Accounts] Merged account and character system loaded successfully.^0")
+print("^2[Account & Character System] Merged system loaded successfully.^0")
